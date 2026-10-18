@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Município · Apoio Técnico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="apoio.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir filtros" aria-controls="sidebar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+    <div class="brand">
+      <h1>Apoio Técnico · Pernambuco</h1>
+      <p>Consulta por município</p>
+    </div>
+    <nav class="nav" aria-label="Seções">
+      <a href="index.html" id="navHome">Painel geral</a>
+      <a href="municipio.html" aria-current="page">Município</a>
+    </nav>
+    <div class="topbar-right" id="statusHost"></div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar" aria-label="Filtros">
+      <div class="sidebar-head">
+        <h2>Filtros</h2>
+        <button class="sidebar-close" id="sidebarClose" type="button" aria-label="Fechar filtros">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar-body">
+        <div class="filter-group">
+          <div class="filter-group-title">Período</div>
+          <div id="fPeriod"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-group-title">Categorias</div>
+          <div id="fGroups"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-group-title">Segmentação</div>
+          <div id="fGer"></div>
+          <div id="fMod"></div>
+        </div>
+
+        <div class="sidebar-actions">
+          <button class="btn" type="button" id="btnReset">Limpar filtros</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="page">
+      <div class="combo" id="combo">
+        <label class="sr-only" for="comboInput">Pesquisar município</label>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="comboInput" type="text" placeholder="Pesquisar município…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="comboList" aria-autocomplete="list">
+        <ul id="comboList" role="listbox"></ul>
+      </div>
+
+      <!-- Estado inicial -->
+      <section class="empty-state" id="emptyState">
+        <h2>Escolha um município para ver os dados</h2>
+        <p>Digite o nome acima ou acesse um dos mais atendidos no período.</p>
+        <div class="quick" id="quick"></div>
+      </section>
+
+      <!-- Detalhe -->
+      <div id="detail" class="hidden" style="display:flex;flex-direction:column;gap:1.1rem">
+        <div class="mun-head">
+          <div>
+            <h2 id="dNome"></h2>
+            <div class="tags" id="dTags"></div>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn" type="button" id="btnCsv">Baixar registros (CSV)</button>
+            <a class="btn" id="btnMapa" href="index.html">Ver no painel geral</a>
+          </div>
+        </div>
+
+        <section class="kpis" id="kpis" aria-label="Indicadores do município"></section>
+
+        <!-- Registros do período — logo após os KPIs -->
+        <section class="panel" aria-label="Registros do município">
+          <div class="panel-head"><h3>Registros do período</h3><span class="hint" id="recHint"></span></div>
+          <div class="table-tools">
+            <label class="sr-only" for="recSearch">Filtrar registros</label>
+            <input class="search-input" id="recSearch" type="search" placeholder="Filtrar por evento, tipo, gerência…">
+          </div>
+          <div class="table-wrap"><table class="data" id="recTbl"></table></div>
+          <div class="more-row hidden" id="recMore"><button class="btn" type="button" id="btnMore">Mostrar mais registros</button></div>
+        </section>
+        <section class="grid-12">
+          <div class="panel span-8">
+            <div class="panel-head"><h3>Evolução mensal no período</h3><span class="hint">por categoria</span></div>
+            <div class="panel-body"><div class="chart-wrap"><canvas id="chMensal"></canvas><div class="chart-empty">Nenhum apoio registrado neste período.</div></div></div>
+          </div>
+          <div class="panel span-4">
+            <div class="panel-head"><h3>Comparação com a média</h3><span class="hint">apoios por município</span></div>
+            <div class="panel-body" id="cmp"></div>
+          </div>
+
+          <div class="panel span-4">
+            <div class="panel-head"><h3>Modalidade</h3></div>
+            <div class="panel-body"><div class="donut-box"><div class="chart-wrap"><canvas id="chModalidade"></canvas><div class="chart-empty">Sem dados</div></div><ul class="legend-list" id="lgModalidade"></ul></div></div>
+          </div>
+          <div class="panel span-4">
+            <div class="panel-head"><h3>Tipo</h3></div>
+            <div class="panel-body"><div class="donut-box"><div class="chart-wrap"><canvas id="chTipo"></canvas><div class="chart-empty">Sem dados</div></div><ul class="legend-list" id="lgTipo"></ul></div></div>
+          </div>
+          <div class="panel span-4">
+            <div class="panel-head"><h3>Gerência</h3></div>
+            <div class="panel-body"><div class="chart-wrap"><canvas id="chGerencia"></canvas><div class="chart-empty">Sem dados</div></div></div>
+          </div>
+
+          <div class="panel span-4">
+            <div class="panel-head"><h3>Devolutiva</h3></div>
+            <div class="panel-body"><div class="donut-box"><div class="chart-wrap"><canvas id="chDevolutiva"></canvas><div class="chart-empty">Sem dados</div></div><ul class="legend-list" id="lgDevolutiva"></ul></div></div>
+          </div>
+          <div class="panel span-8">
+            <div class="panel-head"><h3>Histórico por ano</h3><span class="hint">toda a base</span></div>
+            <div class="panel-body"><div class="chart-wrap"><canvas id="chAnos"></canvas><div class="chart-empty">Sem dados</div></div></div>
+          </div>
+
+          <div class="panel span-12" id="panelRD">
+            <div class="panel-head"><h3 id="rdTitle">Mesma região</h3><span class="hint">posição no período selecionado</span></div>
+            <div style="max-height:360px;overflow:auto;padding-bottom:.4rem"><ul class="rank-list" id="rdList" style="overflow:visible"></ul></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="config.js"></script>
+  <script src="core.js"></script>
+  <script>
+  (async function () {
+    const { esc, fmt, fmt1, pct, norm, MUN, MUN_LIST, RD_COLORS, GRUPOS, OUTROS, GRUPO_BY_ID } = AT;
+    const shortRD = rd => rd.replace(/^RD (\d+) - /, 'RD $1 · ');
+
+    /* ---------- Sidebar (drawer mobile) ---------- */
+    const sidebarEl = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebarClose = document.getElementById('sidebarClose');
+    function openSidebar() {
+      sidebarEl.classList.add('open');
+      sidebarOverlay.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+      sidebarEl.classList.remove('open');
+      sidebarOverlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    menuToggle.addEventListener('click', openSidebar);
+    sidebarClose.addEventListener('click', closeSidebar);
+    sidebarOverlay.addEventListener('click', closeSidebar);
+
+    const { recs, meta } = await AT.boot();
+    const ST = AT.createState(meta);
+    const GR = GRUPOS.concat(meta.hasOutros ? [OUTROS] : []);
+    let current = AT.munKey(new URLSearchParams(location.search).get('m') || '');
+    let sel = [], aggS = null, ranking = [];
+    let recRows = [], recShown = 25;
+
+    /* Modalidades válidas (sem "Presencial") + estado multi-select */
+    const MODALIDADES = (meta.options.modalidade || []).filter(m => m !== 'Presencial');
+    const MOD_COLORS = ['#2dd4bf', '#8b5cf6', '#fbbf24'];
+    ST.modalidades = {};
+    MODALIDADES.forEach(m => { ST.modalidades[m] = true; });
+    ST.modalidade = ''; // o core não filtra por modalidade; fazemos manualmente
+
+    const qs = () => `from=${AT.ymdToIso(ST.from)}&to=${AT.ymdToIso(ST.to)}`;
+    function syncUrl() {
+      const u = new URL(location.href);
+      u.searchParams.set('from', AT.ymdToIso(ST.from)); u.searchParams.set('to', AT.ymdToIso(ST.to));
+      if (current) u.searchParams.set('m', current); else u.searchParams.delete('m');
+      history.replaceState(null, '', u);
+      document.getElementById('navHome').href = `index.html?${qs()}`;
+    }
+
+    /* ---------- Filtro multi-select de modalidade ---------- */
+    function mountModalityMulti(container, options, ST, update) {
+      container.innerHTML = `
+        <div class="f-group">
+          <span class="f-label">Modalidade</span>
+          <div class="multi-chips" role="group" aria-label="Modalidade"></div>
+          <span class="f-error" role="alert"></span>
+        </div>`;
+      const box = container.querySelector('.multi-chips');
+      const err = container.querySelector('.f-error');
+      function render() {
+        box.innerHTML = options.map((m, i) =>
+          `<button type="button" class="chip cat" data-mod="${esc(m)}" aria-pressed="${!!ST.modalidades[m]}" style="--dot:${MOD_COLORS[i % MOD_COLORS.length]}">
+            <span class="dot"></span>${esc(m)}
+          </button>`
+        ).join('');
+        const ativos = options.filter(o => ST.modalidades[o]).length;
+        err.textContent = ativos === 0 ? 'Selecione ao menos uma modalidade para ver resultados.' : '';
+      }
+      box.addEventListener('click', e => {
+        const b = e.target.closest('button[data-mod]'); if (!b) return;
+        const m = b.dataset.mod;
+        ST.modalidades[m] = !ST.modalidades[m];
+        render(); update();
+      });
+      render();
+    }
+
+    /* ---------- Filtros ---------- */
+    AT.mountPeriod(document.getElementById('fPeriod'), meta, ST, update);
+    AT.mountGroupChips(document.getElementById('fGroups'), meta, ST, update);
+    AT.mountSelect(document.getElementById('fGer'), 'Gerência', 'gerencia', meta.options.gerencia, ST, update);
+    mountModalityMulti(document.getElementById('fMod'), MODALIDADES, ST, update);
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      ST.from = ST.defFrom; ST.to = ST.defTo; ST.gerencia = ST.modalidade = '';
+      Object.keys(ST.groups).forEach(k => { ST.groups[k] = true; });
+      MODALIDADES.forEach(m => { ST.modalidades[m] = true; });
+      AT.mountPeriod(document.getElementById('fPeriod'), meta, ST, update);
+      AT.mountGroupChips(document.getElementById('fGroups'), meta, ST, update);
+      AT.mountSelect(document.getElementById('fGer'), 'Gerência', 'gerencia', meta.options.gerencia, ST, update);
+      mountModalityMulti(document.getElementById('fMod'), MODALIDADES, ST, update);
+      update();
+    });
+
+    /* ---------- Busca (combobox) ---------- */
+    const input = document.getElementById('comboInput'), list = document.getElementById('comboList');
+    let hits = [], active = -1;
+    function hl(nome, q) {
+      const n = norm(nome), i = n.indexOf(q);
+      if (!q || i < 0) return esc(nome);
+      return esc(nome.slice(0, i)) + '<mark>' + esc(nome.slice(i, i + q.length)) + '</mark>' + esc(nome.slice(i + q.length));
+    }
+    function renderList() {
+      const q = norm(input.value);
+      hits = MUN_LIST.filter(m => !q || norm(m.nome).includes(q) || norm(m.rd).includes(q))
+        .sort((a, b) => (norm(b.nome).startsWith(q) - norm(a.nome).startsWith(q)) || a.nome.localeCompare(b.nome, 'pt-BR')).slice(0, 14);
+      active = hits.length ? 0 : -1;
+      list.innerHTML = hits.length
+        ? hits.map((m, i) => `<li role="option" data-k="${esc(m.key)}" aria-selected="${i === 0}"><span>${hl(m.nome, q)}</span><small>${esc(shortRD(m.rd))}</small></li>`).join('')
+        : '<li class="none">Nenhum município encontrado.</li>';
+      list.classList.add('open'); input.setAttribute('aria-expanded', 'true');
+    }
+    function closeList() { list.classList.remove('open'); input.setAttribute('aria-expanded', 'false'); }
+    function move(d) {
+      if (!hits.length) return; active = (active + d + hits.length) % hits.length;
+      [...list.children].forEach((li, i) => { li.setAttribute('aria-selected', i === active); if (i === active) li.scrollIntoView({ block: 'nearest' }); });
+    }
+    input.addEventListener('input', renderList);
+    input.addEventListener('focus', () => { input.select(); renderList(); });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); if (!list.classList.contains('open')) renderList(); else move(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (hits[active]) choose(hits[active].key); }
+      else if (e.key === 'Escape') closeList();
+    });
+    list.addEventListener('mousedown', e => { const li = e.target.closest('li[data-k]'); if (li) { e.preventDefault(); choose(li.dataset.k); } });
+    document.addEventListener('click', e => { if (!e.target.closest('#combo')) closeList(); });
+
+    function choose(key) {
+      current = key; recShown = 25; closeList(); input.blur();
+      if (sidebarEl.classList.contains('open')) closeSidebar();
+      update();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    /* ---------- Cálculos ---------- */
+    function topSplit(list, field, n) {
+      return AT.countBy(list, field).slice(0, n).map(([k, v]) => `${esc(k)} <b>${fmt(v)}</b>`).join(' · ');
+    }
+    const ord = n => `${n}º`;
+
+    function compute() {
+      ST.modalidade = '';
+      let base = AT.filterBase(recs, ST);
+      // Aplica o filtro multi-select de modalidade sobre a base
+      base = base.filter(r => ST.modalidades[r.modalidade] === true);
+      sel = AT.filterGroups(base, ST);
+      aggS = AT.aggregate(sel);
+      ranking = MUN_LIST.map(m => ({ m, v: (aggS.mun[m.key] || {}).total || 0 })).sort((a, b) => b.v - a.v || a.m.nome.localeCompare(b.m.nome, 'pt-BR'));
+      ranking.forEach(r => { r.pos = 1 + ranking.filter(x => x.v > r.v).length; });
+    }
+
+    /* ---------- Renderização ---------- */
+    function renderEmpty() {
+      document.getElementById('emptyState').classList.remove('hidden');
+      document.getElementById('detail').classList.add('hidden');
+      const top = ranking.slice(0, 8).filter(r => r.v > 0);
+      document.getElementById('quick').innerHTML = top.map(r => `<a href="#" data-k="${esc(r.m.key)}">${esc(r.m.nome)} <small style="color:var(--muted)">${fmt(r.v)}</small></a>`).join('');
+    }
+    document.getElementById('quick').addEventListener('click', e => { const a = e.target.closest('a[data-k]'); if (a) { e.preventDefault(); choose(a.dataset.k); } });
+
+    function renderDetail() {
+      const m = MUN[current];
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('detail').classList.remove('hidden');
+      input.value = m.nome;
+      document.title = `${m.nome} · Apoio Técnico`;
+      document.getElementById('dNome').textContent = m.nome;
+      document.getElementById('dTags').innerHTML = `<span class="tag tag-rd" style="--rdc:${RD_COLORS[m.rd]}"><i></i>${esc(m.rd)}</span><span class="tag">${esc(m.porte)}</span>`;
+      document.getElementById('btnMapa').href = `index.html?${qs()}`;
+
+      const mine = sel.filter(r => r.mun === current);
+      const me = ranking.find(r => r.m.key === current);
+      const rdMembers = ranking.filter(r => r.m.rd === m.rd);
+      const rdPos = 1 + rdMembers.filter(r => r.v > me.v).length;
+      const mediaRD = rdMembers.reduce((s, r) => s + r.v, 0) / rdMembers.length;
+      const portMembers = ranking.filter(r => r.m.porte === m.porte);
+      const mediaPorte = portMembers.reduce((s, r) => s + r.v, 0) / portMembers.length;
+      const mediaUF = ranking.reduce((s, r) => s + r.v, 0) / ranking.length;
+      const last = mine.reduce((mx, r) => r.ymd > mx ? r.ymd : mx, 0);
+      const cnt = {}; mine.forEach(r => { cnt[r.grupo] = (cnt[r.grupo] || 0) + 1; });
+      const difRD = mediaRD > 0 ? (me.v / mediaRD - 1) * 100 : null;
+      const semApoio = me.v === 0;
+
+      let h = `
+        <div class="kpi big"><div class="k-label">Apoios técnicos no período</div><div class="k-value">${fmt(me.v)}</div><div class="k-sub">${AT.fmtDate(ST.from)} a ${AT.fmtDate(ST.to)}</div></div>
+        <div class="kpi"><div class="k-label">Posição no estado</div><div class="k-value">${semApoio ? '—' : ord(me.pos)}</div><div class="k-sub">${semApoio ? 'sem apoios no período' : `entre ${ranking.length} municípios`}</div></div>
+        <div class="kpi"><div class="k-label">Posição na região</div><div class="k-value">${semApoio ? '—' : ord(rdPos)}</div><div class="k-sub">entre ${rdMembers.length} municípios da ${esc(shortRD(m.rd))}</div></div>
+        <div class="kpi"><div class="k-label">Última atividade</div><div class="k-value" style="font-size:1.6rem">${last ? AT.fmtDate(last) : '—'}</div><div class="k-sub">${last ? 'dentro do período' : 'nenhum registro no período'}</div></div>`;
+      GRUPOS.forEach(g => {
+        const l = mine.filter(r => r.grupo === g.id);
+        const sub = g.id === 'evento' ? topSplit(l, 'sub', 2) : topSplit(l, 'modalidade', 3);
+        h += `<div class="kpi cat ${ST.groups[g.id] ? '' : 'off'}" style="--dot:${g.cor}"><div class="k-label">${esc(g.nome)}</div><div class="k-value">${fmt(cnt[g.id] || 0)}</div><div class="k-sub">${sub || 'Sem registros'}</div></div>`;
+      });
+      h += difRD == null
+        ? `<div class="kpi cat" style="--dot:var(--accent)"><div class="k-label">Em relação à média da região</div><div class="k-value" style="font-size:1.4rem">—</div><div class="k-sub">a região não teve apoios no período</div></div>`
+        : `<div class="kpi cat" style="--dot:var(--accent)"><div class="k-label">Em relação à média da região</div><div class="k-value">${difRD >= 0 ? '+' : ''}${fmt1(difRD)}%</div><div class="k-sub">média da região: <b>${fmt1(mediaRD)}</b> por município</div></div>`;
+      if (meta.hasOutros) h += `<div class="kpi cat ${ST.groups.outros ? '' : 'off'}" style="--dot:${OUTROS.cor}"><div class="k-label">${OUTROS.nome}</div><div class="k-value">${fmt(cnt.outros || 0)}</div><div class="k-sub">Categorias não reconhecidas</div></div>`;
+      document.getElementById('kpis').innerHTML = h;
+
+      const max = Math.max(1, me.v, mediaRD, mediaPorte, mediaUF);
+      const row = (t, v, cls) => `<div class="cmp-row ${cls || ''}"><span>${esc(t)}</span><span class="t"><i style="width:${pct(v, max)}%"></i></span><span class="v">${fmt1(v)}</span></div>`;
+      document.getElementById('cmp').innerHTML = row(m.nome, me.v, 'me') + row('Média da região', mediaRD) + row('Média do porte', mediaPorte) + row('Média do estado', mediaUF) +
+        `<div class="cmp-note">Médias calculadas sobre todos os municípios do grupo, inclusive os sem apoios. Porte: ${esc(m.porte)}.</div>`;
+
+      AT.chart.stackedMonthly('chMensal', mine, ST.from, ST.to, ST.groups);
+      AT.chart.donut('chModalidade', 'lgModalidade', AT.countBy(mine, 'modalidade'));
+      AT.chart.donut('chTipo', 'lgTipo', AT.countBy(mine, 'tipo'));
+      AT.chart.bars('chGerencia', AT.countBy(mine, 'gerencia'), { color: '#8b5cf6' });
+      AT.chart.donut('chDevolutiva', 'lgDevolutiva', AT.countBy(mine, 'devolutiva'));
+      const hist = recs.filter(r => r.mun === current && ST.groups[r.grupo] && ST.modalidades[r.modalidade] === true);
+      AT.chart.bars('chAnos', meta.years.map(y => [String(y), hist.filter(r => r.y === y).length]), { color: '#2dd4bf' });
+
+      document.getElementById('rdTitle').textContent = `${shortRD(m.rd)} · ${rdMembers.length} municípios`;
+      const rmax = Math.max(1, ...rdMembers.map(r => r.v));
+      document.getElementById('rdList').innerHTML = rdMembers.map((r, i) => {
+        const pos = r.v ? 1 + rdMembers.filter(x => x.v > r.v).length : '—';
+        return `<li class="rank-item ${r.m.key === current ? 'cur' : ''}" data-k="${esc(r.m.key)}" tabindex="0"><span class="pos">${pos}</span><span><div class="nm">${esc(r.m.nome)}</div><div class="sub">${esc(r.m.porte)}</div></span><span class="val">${fmt(r.v)}</span><span class="rbar"><i style="width:${pct(r.v, rmax)}%;--rc:${RD_COLORS[m.rd]}"></i></span></li>`;
+      }).join('');
+
+      recRows = mine.slice().sort((a, b) => b.ymd - a.ymd || a.i - b.i);
+      renderRecords();
+    }
+    document.getElementById('rdList').addEventListener('click', e => { const li = e.target.closest('.rank-item'); if (li) choose(li.dataset.k); });
+    document.getElementById('rdList').addEventListener('keydown', e => { if (e.key === 'Enter') { const li = e.target.closest('.rank-item'); if (li) choose(li.dataset.k); } });
+
+    function filteredRecords() {
+      const q = norm(document.getElementById('recSearch').value);
+      // "avaliacao" removida da busca
+      return q ? recRows.filter(r => norm([r.evento, r.categoria, r.modalidade, r.tipo, r.gerencia, r.devolutiva].join(' ')).includes(q)) : recRows;
+    }
+    function renderRecords() {
+      const rows = filteredRecords();
+      const t = document.getElementById('recTbl');
+      if (!rows.length) {
+        t.innerHTML = '<tbody><tr><td class="wrap" style="padding:1.4rem;color:var(--muted)">Nenhum registro para este município no período e filtros selecionados.</td></tr></tbody>';
+      } else {
+        // Coluna "Avaliação" removida
+        t.innerHTML = '<thead><tr><th>Data</th><th>Categoria</th><th>Evento</th><th>Modalidade</th><th>Tipo</th><th>Gerência</th><th>Devolutiva</th></tr></thead><tbody>' +
+          rows.slice(0, recShown).map(r => `<tr><td>${AT.fmtDate(r.ymd)}</td><td><span class="tag g-${r.grupo}">${esc(r.categoria)}</span></td><td class="wrap">${esc(r.evento || '—')}</td><td>${esc(r.modalidade)}</td><td>${esc(r.tipo)}</td><td>${esc(r.gerencia)}</td><td>${esc(r.devolutiva)}</td></tr>`).join('') + '</tbody>';
+      }
+      document.getElementById('recHint').textContent = `${Math.min(recShown, rows.length)} de ${rows.length} registros`;
+      document.getElementById('recMore').classList.toggle('hidden', rows.length <= recShown);
+    }
+    document.getElementById('btnMore').addEventListener('click', () => { recShown += 50; renderRecords(); });
+    document.getElementById('recSearch').addEventListener('input', () => { recShown = 25; renderRecords(); });
+    document.getElementById('btnCsv').addEventListener('click', () => {
+      const rows = filteredRecords();
+      // Coluna "Avaliação" removida do CSV
+      AT.csvDownload(`${current}_${AT.ymdToIso(ST.from)}_${AT.ymdToIso(ST.to)}.csv`,
+        [['Data', 'Município', 'Categoria', 'Evento', 'Modalidade', 'Tipo', 'Gerência', 'Devolutiva']]
+          .concat(rows.map(r => [AT.fmtDate(r.ymd), r.nome, r.categoria, r.evento, r.modalidade, r.tipo, r.gerencia, r.devolutiva])));
+    });
+
+    function update() {
+      compute(); syncUrl();
+      if (current && MUN[current]) renderDetail(); else renderEmpty();
+    }
+    update();
+    if (!current) input.focus();
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && sidebarEl.classList.contains('open')) closeSidebar();
+    });
+  })();
+  </script>
+</body>
+</html>

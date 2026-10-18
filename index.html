@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel de Apoio Técnico · Pernambuco</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="apoio.css">
+  <style>
+    .map-wrap { position: relative; flex: 1; display: flex; flex-direction: column; }
+    .rank-panel .panel-head { padding-bottom: 0; }
+    .col-stack { display: flex; flex-direction: column; gap: 1.1rem; }
+    .col-stack .panel { flex: 1; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <button class="menu-toggle" id="menuToggle" type="button" aria-label="Abrir filtros" aria-controls="sidebar">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+    <div class="brand">
+      <h1>Apoio Técnico · Pernambuco</h1>
+      <p>Painel de atendimentos aos municípios</p>
+    </div>
+    <nav class="nav" aria-label="Seções">
+      <a href="index.html" aria-current="page">Painel geral</a>
+      <a href="municipio.html" id="navMun">Município</a>
+    </nav>
+    <div class="topbar-right" id="statusHost"></div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar" aria-label="Filtros do painel">
+      <div class="sidebar-head">
+        <h2>Filtros</h2>
+        <button class="sidebar-close" id="sidebarClose" type="button" aria-label="Fechar filtros">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar-body">
+        <div class="filter-group">
+          <div class="filter-group-title">Período</div>
+          <div id="fPeriod"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-group-title">Categorias</div>
+          <div id="fGroups"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-group-title">Segmentação</div>
+          <div id="fGer"></div>
+          <div id="fMod"></div>
+          <div id="fPorte"></div>
+        </div>
+
+        <div class="sidebar-actions">
+          <button class="btn" type="button" id="btnReset">Limpar filtros</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="page">
+      <!-- Indicadores -->
+      <section class="kpis" id="kpis" aria-label="Indicadores do período"></section>
+
+      <!-- Mapa + ranking -->
+      <section class="map-layout">
+        <div class="panel map-panel">
+          <div class="map-toolbar">
+            <div class="tb"><span class="tb-label">Visão</span>
+              <div class="seg" id="segView"><button type="button" class="active" data-v="municipality">Municípios</button><button type="button" data-v="rd">Regiões (RDs)</button></div>
+            </div>
+            <div class="tb"><span class="tb-label">Cor</span>
+              <div class="seg" id="segColor"><button type="button" data-c="rd">Por região</button><button type="button" class="active" data-c="vol">Por volume</button></div>
+            </div>
+            <button class="btn" type="button" id="btnFit">Ver o estado todo</button>
+            <div class="search-wrap">
+              <label class="sr-only" for="mapSearch">Buscar município no mapa</label>
+              <input class="search-input" id="mapSearch" type="text" list="munList" placeholder="Buscar município no mapa…" autocomplete="off">
+              <datalist id="munList"></datalist>
+            </div>
+          </div>
+          <div class="map-wrap">
+            <div id="map" role="img" aria-label="Mapa dos municípios de Pernambuco com o total de apoios técnicos"></div>
+            <div class="map-noronha" id="mapNoronhaWrap" aria-label="Recorte de Fernando de Noronha">
+              <div class="map-noronha-title">Fernando de Noronha</div>
+              <div id="mapNoronha"></div>
+            </div>
+            <div class="map-legend" id="mapLegend"></div>
+          </div>
+        </div>
+
+        <aside class="panel rank-panel" aria-label="Ranking">
+          <div class="panel-head"><h2 id="rankTitle">Mais atendidos</h2><span class="hint" id="rankHint"></span></div>
+          <div class="panel-body">
+            <div class="rank-tabs"><div class="seg" id="segRank"><button type="button" class="active" data-r="mun">Municípios</button><button type="button" data-r="rd">Regiões</button></div></div>
+            <ul class="rank-list" id="rankList"></ul>
+            <div class="rank-foot" id="rankFoot"></div>
+          </div>
+        </aside>
+      </section>
+
+      <!-- Gráficos -->
+      <section class="grid-12" aria-label="Gráficos">
+        <div class="panel span-8">
+          <div class="panel-head"><h3>Evolução mensal dos apoios</h3><span class="hint">por categoria</span></div>
+          <div class="panel-body"><div class="chart-wrap"><canvas id="chMensal"></canvas><div class="chart-empty">Sem registros no período selecionado.</div></div></div>
+        </div>
+        <div class="panel span-4">
+          <div class="panel-head"><h3>Atendimento por modalidade</h3></div>
+          <div class="panel-body"><div class="donut-box"><div class="chart-wrap"><canvas id="chModalidade"></canvas><div class="chart-empty">Sem dados</div></div><ul class="legend-list" id="lgModalidade"></ul></div></div>
+        </div>
+
+        <div class="panel span-4">
+          <div class="panel-head"><h3>Atendimento por tipo</h3></div>
+          <div class="panel-body"><div class="donut-box"><div class="chart-wrap"><canvas id="chTipo"></canvas><div class="chart-empty">Sem dados</div></div><ul class="legend-list" id="lgTipo"></ul></div></div>
+        </div>
+        <div class="panel span-4">
+          <div class="panel-head"><h3>Atendimentos por gerência</h3></div>
+          <div class="panel-body"><div class="chart-wrap"><canvas id="chGerencia"></canvas><div class="chart-empty">Sem dados</div></div></div>
+        </div>
+        <div class="panel span-4">
+          <div class="panel-head"><h3>Atendimentos por porte</h3></div>
+          <div class="panel-body"><div class="chart-wrap"><canvas id="chPorte"></canvas><div class="chart-empty">Sem dados</div></div></div>
+        </div>
+
+        <div class="panel span-8">
+          <div class="panel-head"><h3>Atendimentos por região de desenvolvimento</h3></div>
+          <div class="panel-body"><div class="chart-wrap" style="height:430px"><canvas id="chRD"></canvas><div class="chart-empty">Sem dados</div></div></div>
+        </div>
+        <div class="panel span-4">
+          <div class="panel-head"><h3>Devolutiva</h3></div>
+          <div class="panel-body"><div class="donut-box"><div class="chart-wrap"><canvas id="chDevolutiva"></canvas><div class="chart-empty">Sem dados</div></div><ul class="legend-list" id="lgDevolutiva"></ul></div></div>
+        </div>
+        <div class="panel hidden" id="panelSituacao">
+          <div class="panel-head"><h3>Situação</h3></div>
+          <div class="panel-body"><div class="donut-box"><div class="chart-wrap"><canvas id="chSituacao"></canvas><div class="chart-empty">Sem dados</div></div><ul class="legend-list" id="lgSituacao"></ul></div></div>
+        </div>
+      </section>
+
+      <!-- Tabela -->
+      <section class="panel" id="tabela" aria-label="Tabela de municípios">
+        <div class="panel-head"><h3>Todos os municípios no período</h3><span class="hint" id="tblHint"></span></div>
+        <div class="table-tools">
+          <label class="sr-only" for="tblSearch">Filtrar municípios na tabela</label>
+          <input class="search-input" id="tblSearch" type="search" placeholder="Filtrar por nome ou RD…">
+          <label class="chip" style="cursor:pointer"><input type="checkbox" id="tblZero"> Somente sem atendimento</label>
+          <button class="btn" type="button" id="btnCsv">Baixar CSV</button>
+        </div>
+        <div class="table-wrap"><table class="data" id="tbl"></table></div>
+      </section>
+
+      <details class="diag" id="diag">
+        <summary>Como os registros foram classificados</summary>
+        <div class="diag-body" id="diagBody"></div>
+      </details>
+    </main>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="mNome">
+    <div class="modal-card">
+      <button class="modal-close" type="button" id="mClose" aria-label="Fechar">&times;</button>
+      <h2 id="mNome"></h2>
+      <div class="sub" id="mSub"></div>
+      <div class="mini-grid" id="mMini"></div>
+      <table class="cat-table" id="mCat"></table>
+      <div id="mExtra"></div>
+      <div class="modal-actions" id="mActions"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="config.js"></script>
+  <script src="core.js"></script>
+  <script>
+  (async function () {
+    const { esc, fmt, fmt1, pct, norm, MUN, MUN_LIST, RD_COLORS, RD_LIST, GRUPOS, OUTROS, GRUPO_BY_ID, PORTES } = AT;
+    const TOTAL_MUN = MUN_LIST.length;
+    const shortRD = rd => rd.replace(/^RD (\d+) - /, 'RD $1 · ');
+
+    /* ---------- Sidebar (drawer mobile) ---------- */
+    const sidebarEl = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebarClose = document.getElementById('sidebarClose');
+    function openSidebar() {
+      sidebarEl.classList.add('open');
+      sidebarOverlay.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+      sidebarEl.classList.remove('open');
+      sidebarOverlay.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    menuToggle.addEventListener('click', openSidebar);
+    sidebarClose.addEventListener('click', closeSidebar);
+    sidebarOverlay.addEventListener('click', closeSidebar);
+
+    const { recs, meta } = await AT.boot();
+    const ST = AT.createState(meta);
+
+    /* Modalidades válidas (removendo "Presencial") + estado multi-select */
+    const MODALIDADES = (meta.options.modalidade || []).filter(m => m !== 'Presencial');
+    const MOD_COLORS = ['#2dd4bf', '#8b5cf6', '#fbbf24'];
+    ST.modalidades = {};
+    MODALIDADES.forEach(m => { ST.modalidades[m] = true; });
+    ST.modalidade = ''; // garante que o core não filtre por modalidade
+
+    let base = [], sel = [], aggB = null, aggS = null;
+    let viewMode = 'municipality', colorMode = 'vol', rankMode = 'mun';
+    let tblSort = { col: 'total', dir: -1 };
+    const GR = GRUPOS.concat(meta.hasOutros ? [OUTROS] : []);
+
+    /* ---------- Filtro multi-select de modalidade ---------- */
+    function mountModalityMulti(container, options, ST, update) {
+      container.innerHTML = `
+        <div class="f-group">
+          <span class="f-label">Modalidade</span>
+          <div class="multi-chips" role="group" aria-label="Modalidade"></div>
+          <span class="f-error" role="alert"></span>
+        </div>`;
+      const box = container.querySelector('.multi-chips');
+      const err = container.querySelector('.f-error');
+      function render() {
+        box.innerHTML = options.map((m, i) =>
+          `<button type="button" class="chip cat" data-mod="${esc(m)}" aria-pressed="${!!ST.modalidades[m]}" style="--dot:${MOD_COLORS[i % MOD_COLORS.length]}">
+            <span class="dot"></span>${esc(m)}
+          </button>`
+        ).join('');
+        const ativos = options.filter(o => ST.modalidades[o]).length;
+        err.textContent = ativos === 0 ? 'Selecione ao menos uma modalidade para ver resultados.' : '';
+      }
+      box.addEventListener('click', e => {
+        const b = e.target.closest('button[data-mod]'); if (!b) return;
+        const m = b.dataset.mod;
+        ST.modalidades[m] = !ST.modalidades[m];
+        render(); update();
+      });
+      render();
+    }
+
+    /* ---------- Filtros ---------- */
+    function mountFilters() {
+      AT.mountPeriod(document.getElementById('fPeriod'), meta, ST, update);
+      AT.mountGroupChips(document.getElementById('fGroups'), meta, ST, update);
+      AT.mountSelect(document.getElementById('fGer'), 'Gerência', 'gerencia', meta.options.gerencia, ST, update);
+      mountModalityMulti(document.getElementById('fMod'), MODALIDADES, ST, update);
+      AT.mountSelect(document.getElementById('fPorte'), 'Porte', 'porte', meta.options.porte, ST, update);
+    }
+    document.getElementById('btnReset').addEventListener('click', () => {
+      ST.from = ST.defFrom; ST.to = ST.defTo; ST.gerencia = ST.modalidade = ST.porte = '';
+      Object.keys(ST.groups).forEach(k => { ST.groups[k] = true; });
+      MODALIDADES.forEach(m => { ST.modalidades[m] = true; });
+      mountFilters(); update();
+    });
+
+    const qs = () => `from=${AT.ymdToIso(ST.from)}&to=${AT.ymdToIso(ST.to)}`;
+    const munLink = key => `municipio.html?m=${encodeURIComponent(key)}&${qs()}`;
+
+    /* ---------- Indicadores ---------- */
+    function topSplit(list, field, n) {
+      const c = AT.countBy(list, field).slice(0, n);
+      return c.map(([k, v]) => `${esc(k)} <b>${fmt(v)}</b>`).join(' · ');
+    }
+    function renderKpis() {
+      const counts = {}; base.forEach(r => { counts[r.grupo] = (counts[r.grupo] || 0) + 1; });
+      const atendidos = MUN_LIST.filter(m => (aggS.mun[m.key] || {}).total > 0).length;
+      const somaMun = MUN_LIST.reduce((s, m) => s + ((aggS.mun[m.key] || {}).total || 0), 0);
+      const ultimo = sel.reduce((mx, r) => r.ymd > mx ? r.ymd : mx, 0);
+      const naoMun = sel.length - somaMun;
+      let h = `
+        <div class="kpi big"><div class="k-label">Total de apoios técnicos</div><div class="k-value">${fmt(sel.length)}</div>
+          <div class="k-sub">${AT.fmtDate(ST.from)} a ${AT.fmtDate(ST.to)}${naoMun > 0 ? ` · ${fmt(naoMun)} sem município identificado` : ''}</div></div>
+        <div class="kpi"><div class="k-label">Municípios atendidos</div><div class="k-value">${fmt(atendidos)}<span style="font-size:1rem;color:var(--muted);font-weight:400"> de ${TOTAL_MUN}</span></div>
+          <div class="bar"><i style="width:${pct(atendidos, TOTAL_MUN)}%"></i></div><div class="k-sub">${fmt1(pct(atendidos, TOTAL_MUN))}% de cobertura</div></div>
+        <div class="kpi"><div class="k-label">Média por município</div><div class="k-value">${fmt1(somaMun / TOTAL_MUN)}</div><div class="k-sub">considerando os ${TOTAL_MUN} municípios</div></div>
+        <div class="kpi"><div class="k-label">Municípios sem atendimento</div><div class="k-value">${fmt(TOTAL_MUN - atendidos)}</div><div class="k-sub"><a href="#tabela" id="lnkZero">Ver quais são</a></div></div>`;
+      GRUPOS.forEach(g => {
+        const list = base.filter(r => r.grupo === g.id);
+        const sub = g.id === 'evento' ? topSplit(list, 'sub', 2) : topSplit(list, 'modalidade', 3);
+        h += `<div class="kpi cat ${ST.groups[g.id] ? '' : 'off'}" style="--dot:${g.cor}"><div class="k-label">${esc(g.nome)}</div><div class="k-value">${fmt(counts[g.id] || 0)}</div><div class="k-sub">${sub || 'Sem registros'}</div></div>`;
+      });
+      if (meta.hasOutros) {
+        h += `<div class="kpi cat ${ST.groups.outros ? '' : 'off'}" style="--dot:${OUTROS.cor}"><div class="k-label">${OUTROS.nome}</div><div class="k-value">${fmt(counts.outros || 0)}</div><div class="k-sub">Categorias não reconhecidas</div></div>`;
+      } else {
+        h += `<div class="kpi cat" style="--dot:var(--accent)"><div class="k-label">Última atividade no período</div><div class="k-value" style="font-size:1.4rem">${AT.fmtDate(ultimo)}</div><div class="k-sub">data mais recente dos registros</div></div>`;
+      }
+      document.getElementById('kpis').innerHTML = h;
+      const z = document.getElementById('lnkZero');
+      if (z) z.addEventListener('click', () => { document.getElementById('tblZero').checked = true; renderTable(); });
+    }
+
+    /* ---------- Mapa ---------- */
+    let map, geoLayer, fitAll = () => {}; const items = {}; let selLayerKey = null, selRD = null;
+    const munLabels = L.layerGroup(), rdLabels = L.layerGroup(); const rdMarkers = {};
+
+    const FN_KEY = 'fernando de noronha';
+    let miniMap = null, miniLayer = null, miniLayerRef = null, miniLabel = null;
+
+    const STOPS = ['#ccfbf1', '#5eead4', '#14b8a6', '#134e4a'];
+    const hex = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+    function scale(t) {
+      t = Math.max(0, Math.min(1, t)) * (STOPS.length - 1);
+      const i = Math.min(STOPS.length - 2, Math.floor(t)), f = t - i;
+      const a = hex(STOPS[i]), b = hex(STOPS[i + 1]);
+      return 'rgb(' + a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(',') + ')';
+    }
+    let maxVal = 1;
+    const valueOf = it => viewMode === 'rd' ? ((aggS.rd[it.info.rd] || {}).total || 0) : ((aggS.mun[it.key] || {}).total || 0);
+
+    function baseStyle(it) {
+      const v = valueOf(it);
+      if (colorMode === 'rd') {
+        return { fillColor: RD_COLORS[it.info.rd] || '#94a3b8', fillOpacity: .92, color: 'rgba(255,255,255,.6)', weight: .85, opacity: 1 };
+      }
+      if (v === 0) {
+        return { fillColor: 'transparent', fillOpacity: 0, color: '#3d5a80', weight: .9, dashArray: '4,3', opacity: 1 };
+      }
+      return { fillColor: scale(Math.sqrt(v / maxVal)), fillOpacity: .92, color: 'rgba(255,255,255,.35)', weight: .85, opacity: 1 };
+    }
+
+    const HOVER = { fillColor: '#2dd4bf', weight: 2.5, color: '#fff', fillOpacity: .95 };
+    const SELECTED = { fillColor: '#fbbf24', weight: 3.5, color: '#fff', fillOpacity: 1 };
+    const isSel = it => viewMode === 'rd' ? selRD === it.info.rd : selLayerKey === it.key;
+
+    function groupsHtml(g) {
+      return GR.map(x => `<small>${esc(x.nome)}: ${fmt((g || {})[x.id] || 0)}</small><br>`).join('');
+    }
+    function tipMun(it) {
+      const b = aggB.mun[it.key] || { g: {} }, s = aggS.mun[it.key] || { total: 0 };
+      return `<b>${esc(it.info.nome)}</b><br><small>${esc(it.info.rd)}</small><br>${groupsHtml(b.g)}<small><b>Total exibido: ${fmt(s.total)}</b></small><br><small>Porte: ${esc(it.info.porte)}</small>`;
+    }
+    function tipRD(rd) {
+      const b = aggB.rd[rd] || { g: {} }, s = aggS.rd[rd] || { total: 0 };
+      return `<b>${esc(rd)}</b><br>${groupsHtml(b.g)}<small><b>Total exibido: ${fmt(s.total)}</b></small>`;
+    }
+    const labelIcon = (cls, v) => L.divIcon({ className: cls + (v === 0 ? ' zero' : ''), html: `<span>${v}</span>`, iconSize: cls === 'rd-label' ? [62, 26] : [28, 14], iconAnchor: cls === 'rd-label' ? [31, 13] : [14, 7] });
+
+    async function loadGeo() {
+      const urls = [
+        'https://cdn.jsdelivr.net/gh/tbrugz/geodata-br@master/geojson/geojs-26-mun.json',
+        'https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-26-mun.json',
+        'https://servicodados.ibge.gov.br/api/v3/malhas/estados/26?formato=application/vnd.geo+json&qualidade=intermediaria&estrutura=municipio'
+      ];
+      for (const u of urls) {
+        try { const r = await fetch(u); if (!r.ok) continue; const d = await r.json(); if (d && d.features && d.features.length > 50) return d; } catch (e) { /* tenta a próxima fonte */ }
+      }
+      throw new Error('malha');
+    }
+
+    /* ---------- Hover do mapa ---------- */
+    let mapTipRD = null;
+    let hoveredRD = null;
+    let hoverClearTimer = null;
+    let layersHaveTooltip = false;
+
+    function onLayerOver(it, e) {
+      if (viewMode === 'rd') {
+        clearTimeout(hoverClearTimer);
+        const rd = it.info.rd;
+        if (hoveredRD !== rd) { hoveredRD = rd; applyRDHover(rd); }
+        mapTipRD.setContent(tipRD(rd));
+        mapTipRD.setLatLng(e.latlng);
+        if (!map.hasLayer(mapTipRD)) mapTipRD.addTo(map);
+      } else {
+        if (isSel(it)) return;
+        it.layer.setStyle(HOVER);
+        it.layer.bringToFront();
+      }
+    }
+
+    function onLayerOut(it) {
+      if (viewMode === 'rd') {
+        const rd = it.info.rd;
+        clearTimeout(hoverClearTimer);
+        hoverClearTimer = setTimeout(() => {
+          if (hoveredRD === rd) {
+            hoveredRD = null;
+            clearRDHover();
+            if (mapTipRD && map.hasLayer(mapTipRD)) map.removeLayer(mapTipRD);
+          }
+        }, 60);
+      } else {
+        if (isSel(it)) return;
+        it.layer.setStyle(baseStyle(it));
+      }
+    }
+
+    function applyRDHover(rd) {
+      Object.values(items).forEach(t => {
+        if (isSel(t)) return;
+        if (t.info.rd === rd) {
+          t.layer.setStyle(baseStyle(t));
+        } else {
+          const bs = baseStyle(t);
+          t.layer.setStyle({ fillColor: bs.fillColor, fillOpacity: .15, color: bs.color, weight: bs.weight, opacity: .25 });
+        }
+      });
+    }
+    function clearRDHover() {
+      Object.values(items).forEach(t => {
+        if (isSel(t)) return;
+        t.layer.setStyle(baseStyle(t));
+      });
+    }
+
+    function ensureTooltipMode() {
+      const shouldBind = viewMode === 'municipality';
+      if (shouldBind === layersHaveTooltip) return;
+      layersHaveTooltip = shouldBind;
+      Object.values(items).forEach(it => {
+        if (shouldBind) {
+          it.layer.bindTooltip(function () { return tipMun(it); }, { className: 'tip', sticky: true, direction: 'top' });
+        } else {
+          it.layer.unbindTooltip();
+        }
+      });
+    }
+
+    function initMap(geo) {
+      map = L.map('map', {
+        zoomControl: true,
+        attributionControl: false,
+        minZoom: 6,
+        maxZoom: 13,
+        zoomSnap: .25,
+        zoomDelta: .5,
+        maxBounds: [[-11.5, -42.5], [-5.5, -32.5]],
+        maxBoundsViscosity: 1.0
+      }).setView([-8.38, -37.86], 7);
+
+      mapTipRD = L.tooltip({ className: 'tip', sticky: true, direction: 'top', offset: [10, -10] });
+
+      const continent = [];
+      geoLayer = L.geoJSON(geo, {
+        style: () => ({ fillColor: '#1b2a47', fillOpacity: .9, color: '#3a4f7d', weight: .85 }),
+        onEachFeature: (f, layer) => {
+          const p = f.properties || {};
+          const raw = p.name || p.nome || p.NM_MUN || '';
+          const key = AT.munKey(raw) || norm(raw);
+          const cad = MUN[key];
+          const it = { key, layer, info: { nome: cad ? cad.nome : raw, rd: cad ? cad.rd : 'Não informada', porte: cad ? cad.porte : 'Não informado', ibge: p.id || p.codarea || '' } };
+          items[key] = it;
+          layer.on({
+            mouseover: (e) => onLayerOver(it, e),
+            mouseout:  ()  => onLayerOut(it),
+            mousemove: (e) => { if (viewMode === 'rd' && mapTipRD && map.hasLayer(mapTipRD)) mapTipRD.setLatLng(e.latlng); },
+            click: () => viewMode === 'rd' ? selectRD(it.info.rd, true) : selectMun(it.key, true)
+          });
+          if (key !== FN_KEY) continent.push(layer);
+          const mk = L.marker(layer.getBounds().getCenter(), { interactive: false, keyboard: false, icon: labelIcon('mun-label', 0) });
+          it.label = mk; munLabels.addLayer(mk);
+        }
+      }).addTo(map);
+      const fg = L.featureGroup(continent);
+      fitAll = () => { map.invalidateSize({ animate: false }); map.fitBounds(fg.getBounds(), { padding: [10, 10], animate: false }); };
+      fitAll();
+      setTimeout(fitAll, 300);
+      const toggleLabels = () => map.getContainer().classList.toggle('hide-labels', map.getSize().x < 700 && map.getZoom() < 8.5);
+      map.on('zoomend resize', toggleLabels); setTimeout(toggleLabels, 400);
+
+      const porRD = {};
+      Object.values(items).forEach(it => { if (it.key !== FN_KEY) (porRD[it.info.rd] = porRD[it.info.rd] || []).push(it.layer); });
+      Object.entries(porRD).forEach(([rd, ls]) => { rdMarkers[rd] = L.marker(L.featureGroup(ls).getBounds().getCenter(), { interactive: false, keyboard: false, icon: labelIcon('rd-label', 0) }); rdLabels.addLayer(rdMarkers[rd]); });
+      munLabels.addTo(map);
+
+      initNoronhaMini(geo);
+    }
+
+    /* ---------- Mini-mapa: Fernando de Noronha ---------- */
+    function initNoronhaMini(geo) {
+      const wrap = document.getElementById('mapNoronhaWrap');
+      const container = document.getElementById('mapNoronha');
+      if (!wrap || !container || !items[FN_KEY]) {
+        if (wrap) wrap.style.display = 'none';
+        return;
+      }
+
+      const fnFeature = geo.features.find(f => {
+        const p = f.properties || {};
+        const raw = p.name || p.nome || p.NM_MUN || '';
+        const key = AT.munKey(raw) || norm(raw);
+        return key === FN_KEY;
+      });
+      if (!fnFeature) { wrap.style.display = 'none'; return; }
+
+      miniLayerRef = items[FN_KEY];
+
+      miniMap = L.map(container, {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        touchZoom: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        keyboard: false,
+        zoomSnap: .25,
+        minZoom: 9,
+        maxZoom: 14
+      });
+
+      miniLayer = L.geoJSON(fnFeature, {
+        style: () => isSel(miniLayerRef) ? SELECTED : baseStyle(miniLayerRef),
+        onEachFeature: (f, layer) => {
+          layer.bindTooltip(function () { return tipMun(miniLayerRef); }, {
+            className: 'tip', sticky: true, direction: 'top'
+          });
+          layer.on({
+            mouseover: () => {
+              if (!isSel(miniLayerRef)) layer.setStyle(HOVER);
+              layer.bringToFront();
+              if (miniLabel) miniLabel.bringToFront();
+            },
+            mouseout: () => {
+              layer.setStyle(isSel(miniLayerRef) ? SELECTED : baseStyle(miniLayerRef));
+            },
+            click: () => openMunModal(miniLayerRef)
+          });
+        }
+      }).addTo(miniMap);
+
+      const center = miniLayer.getBounds().getCenter();
+      miniLabel = L.marker(center, {
+        interactive: false,
+        keyboard: false,
+        icon: labelIcon('mun-label', (aggS.mun[FN_KEY] || {}).total || 0)
+      }).addTo(miniMap);
+
+      miniMap.fitBounds(miniLayer.getBounds(), { padding: [12, 12], maxZoom: 12 });
+
+      setTimeout(() => {
+        miniMap.invalidateSize({ animate: false });
+        miniLabel.setLatLng(miniLayer.getBounds().getCenter());
+      }, 150);
+    }
+
+    function paintMiniMap() {
+      if (!miniLayer || !miniLayerRef) return;
+      miniLayer.setStyle(isSel(miniLayerRef) ? SELECTED : baseStyle(miniLayerRef));
+      if (miniLabel) {
+        miniLabel.setIcon(labelIcon('mun-label', (aggS.mun[FN_KEY] || {}).total || 0));
+      }
+    }
+
+    function paintMap() {
+      ensureTooltipMode();
+      const vals = Object.values(items).map(valueOf);
+      maxVal = Math.max(1, ...vals);
+      Object.values(items).forEach(it => {
+        it.layer.setStyle(isSel(it) ? (viewMode === 'rd' ? Object.assign({}, baseStyle(it), { weight: 2.6, color: '#fff' }) : SELECTED) : baseStyle(it));
+        if (it.label) it.label.setIcon(labelIcon('mun-label', (aggS.mun[it.key] || {}).total || 0));
+      });
+      Object.entries(rdMarkers).forEach(([rd, m]) => m.setIcon(labelIcon('rd-label', (aggS.rd[rd] || {}).total || 0)));
+      if (viewMode === 'municipality') { map.removeLayer(rdLabels); munLabels.addTo(map); } else { map.removeLayer(munLabels); rdLabels.addTo(map); }
+      paintLegend();
+      paintMiniMap();
+    }
+
+    function paintLegend() {
+      const el = document.getElementById('mapLegend');
+      let h;
+      if (colorMode === 'rd') {
+        h = '<h4>Regiões</h4>' + RD_LIST.map(r => `<span class="lg-item"><i style="background:${RD_COLORS[r]}"></i>${esc(shortRD(r))}</span>`).join('');
+      } else {
+        h = `<h4>Apoios ${viewMode === 'rd' ? 'por região' : 'por município'}</h4><span class="lg-scale-wrap">1 <span class="lg-scale"></span> ${fmt(maxVal)}</span><span class="lg-zero"><i></i>Sem apoios no período</span>`;
+      }
+      h += '<span class="lg-note">Passe o mouse para destacar · clique para detalhes</span>';
+      el.innerHTML = h;
+    }
+
+    function selectMun(key, modal) {
+      const it = items[key]; if (!it) return;
+      clearSel(); selLayerKey = key; selRD = null;
+      it.layer.setStyle(SELECTED); it.layer.bringToFront();
+      map.fitBounds(it.layer.getBounds(), { maxZoom: 10, padding: [30, 30] });
+      paintMiniMap();
+      if (modal) openMunModal(it);
+    }
+    function selectRD(rd, modal) {
+      clearSel(); selRD = rd; selLayerKey = null;
+      Object.values(items)
+        .filter(x => x.info.rd === rd)
+        .forEach(x => { x.layer.setStyle(Object.assign({}, baseStyle(x), { weight: 2.6, color: '#fff' })); x.layer.bringToFront(); });
+      paintMiniMap();
+      if (modal) openRDModal(rd);
+    }
+    function clearSel() {
+      selLayerKey = null; selRD = null;
+      Object.values(items).forEach(it => it.layer.setStyle(baseStyle(it)));
+      paintMiniMap();
+    }
+
+    /* ---------- Modal ---------- */
+    function catTable(g, aggTot) {
+      const cols = GR;
+      return `<thead><tr>${cols.map(c => `<th>${esc(c.nome)}</th>`).join('')}<th class="tot">Total exibido</th></tr></thead>
+        <tbody><tr>${cols.map(c => `<td class="${ST.groups[c.id] ? '' : 'off'}">${fmt((g || {})[c.id] || 0)}</td>`).join('')}<td>${fmt(aggTot)}</td></tr></tbody>`;
+    }
+    function openMunModal(it) {
+      const b = aggB.mun[it.key] || { g: {} }, s = aggS.mun[it.key] || { total: 0, last: 0 };
+      document.getElementById('mNome').textContent = it.info.nome;
+      document.getElementById('mSub').textContent = it.info.ibge ? `Código IBGE: ${it.info.ibge}` : '';
+      document.getElementById('mMini').innerHTML =
+        `<div class="mini"><label>Região de desenvolvimento</label><div class="v" style="color:var(--accent)">${esc(it.info.rd)}</div></div>
+         <div class="mini"><label>Porte populacional</label><div class="v">${esc(it.info.porte)}</div></div>
+         <div class="mini"><label>Última atividade no período</label><div class="v">${s.last ? AT.fmtDate(s.last) : '—'}</div></div>`;
+      document.getElementById('mCat').innerHTML = catTable(b.g, s.total);
+      document.getElementById('mExtra').innerHTML = '';
+      document.getElementById('mActions').innerHTML = MUN[it.key] ? `<a class="btn primary" href="${munLink(it.key)}">Abrir página do município</a>` : '';
+      openModal();
+    }
+    function openRDModal(rd) {
+      const b = aggB.rd[rd] || { g: {} }, s = aggS.rd[rd] || { total: 0, mun: new Set() };
+      const muns = MUN_LIST.filter(m => m.rd === rd);
+      const aten = muns.filter(m => (aggS.mun[m.key] || {}).total > 0).length;
+      document.getElementById('mNome').textContent = rd;
+      document.getElementById('mSub').textContent = 'Visão consolidada da região de desenvolvimento';
+      document.getElementById('mMini').innerHTML =
+        `<div class="mini"><label>Municípios na região</label><div class="v">${muns.length}</div></div>
+         <div class="mini"><label>Municípios atendidos</label><div class="v">${aten} (${fmt1(pct(aten, muns.length))}%)</div></div>
+         <div class="mini"><label>Média por município</label><div class="v">${fmt1(muns.reduce((a, m) => a + ((aggS.mun[m.key] || {}).total || 0), 0) / muns.length)}</div></div>`;
+      document.getElementById('mCat').innerHTML = catTable(b.g, s.total);
+      const top = muns.map(m => [m, (aggS.mun[m.key] || {}).total || 0]).sort((a, c) => c[1] - a[1]).slice(0, 5);
+      document.getElementById('mExtra').innerHTML = `<div class="sub" style="margin:1rem 0 .3rem">Municípios com mais apoios na região</div><table class="data"><tbody>${top.map(([m, v]) => `<tr><td><a href="${munLink(m.key)}">${esc(m.nome)}</a></td><td class="num">${fmt(v)}</td></tr>`).join('')}</tbody></table>`;
+      document.getElementById('mActions').innerHTML = '';
+      openModal();
+    }
+    const overlay = document.getElementById('modalOverlay');
+    function openModal() { overlay.classList.add('open'); document.getElementById('mClose').focus(); }
+    function closeModal() { overlay.classList.remove('open'); }
+    document.getElementById('mClose').addEventListener('click', closeModal);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        closeModal();
+        if (map) clearSel();
+        if (sidebarEl.classList.contains('open')) closeSidebar();
+      }
+    });
+
+    /* ---------- Controles do mapa ---------- */
+    document.getElementById('segView').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b || b.dataset.v === viewMode) return;
+      viewMode = b.dataset.v; closeModal(); selLayerKey = selRD = null;
+      clearTimeout(hoverClearTimer);
+      hoveredRD = null;
+      if (mapTipRD && map.hasLayer(mapTipRD)) map.removeLayer(mapTipRD);
+      document.querySelectorAll('#segView button').forEach(x => x.classList.toggle('active', x === b));
+      paintMap(); fitAll();
+    });
+    document.getElementById('segColor').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b || b.dataset.c === colorMode) return;
+      colorMode = b.dataset.c;
+      document.querySelectorAll('#segColor button').forEach(x => x.classList.toggle('active', x === b));
+      paintMap();
+    });
+    document.getElementById('btnFit').addEventListener('click', () => { closeModal(); clearSel(); fitAll(); });
+    const dl = document.getElementById('munList');
+    dl.innerHTML = MUN_LIST.map(m => `<option value="${esc(m.nome)}">`).join('');
+    document.getElementById('mapSearch').addEventListener('input', e => {
+      const k = AT.munKey(e.target.value);
+      if (k && items[k]) { if (viewMode === 'rd') { selectRD(items[k].info.rd, true); } else selectMun(k, true); }
+    });
+
+    /* ---------- Ranking ---------- */
+    document.getElementById('segRank').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      rankMode = b.dataset.r;
+      document.querySelectorAll('#segRank button').forEach(x => x.classList.toggle('active', x === b));
+      renderRank();
+    });
+    function renderRank() {
+      const list = document.getElementById('rankList');
+      let rows;
+      if (rankMode === 'rd') {
+        rows = RD_LIST.map(rd => ({ id: rd, nome: shortRD(rd), sub: `${MUN_LIST.filter(m => m.rd === rd).length} municípios`, v: (aggS.rd[rd] || {}).total || 0, c: RD_COLORS[rd] })).sort((a, b) => b.v - a.v);
+        document.getElementById('rankTitle').textContent = 'Regiões com mais apoios';
+        document.getElementById('rankFoot').textContent = '';
+      } else {
+        rows = MUN_LIST.map(m => ({ id: m.key, nome: m.nome, sub: shortRD(m.rd), v: (aggS.mun[m.key] || {}).total || 0, c: RD_COLORS[m.rd] })).sort((a, b) => b.v - a.v || a.nome.localeCompare(b.nome, 'pt-BR'));
+        document.getElementById('rankTitle').textContent = 'Municípios com mais apoios';
+        document.getElementById('rankFoot').innerHTML = `Mostrando os 30 primeiros de ${TOTAL_MUN}. <a href="#tabela">Ver todos na tabela</a>`;
+        rows = rows.slice(0, 30);
+      }
+      const max = Math.max(1, ...rows.map(r => r.v));
+      list.innerHTML = rows.map((r, i) => `<li class="rank-item" data-id="${esc(r.id)}" tabindex="0"><span class="pos">${i + 1}</span><span><div class="nm">${esc(r.nome)}</div><div class="sub">${esc(r.sub)}</div></span><span class="val">${fmt(r.v)}</span><span class="rbar"><i style="width:${pct(r.v, max)}%;--rc:${r.c}"></i></span></li>`).join('');
+    }
+    const rankGo = li => {
+      if (!li) return; const id = li.dataset.id;
+      if (rankMode === 'rd') { viewMode = 'rd'; document.querySelectorAll('#segView button').forEach(x => x.classList.toggle('active', x.dataset.v === 'rd')); paintMap(); selectRD(id, false); const ls = Object.values(items).filter(x => x.info.rd === id).map(x => x.layer); map.fitBounds(L.featureGroup(ls).getBounds(), { padding: [20, 20] }); }
+      else { if (viewMode === 'rd') { viewMode = 'municipality'; document.querySelectorAll('#segView button').forEach(x => x.classList.toggle('active', x.dataset.v === 'municipality')); paintMap(); } selectMun(id, false); }
+      document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (sidebarEl.classList.contains('open')) closeSidebar();
+    };
+    document.getElementById('rankList').addEventListener('click', e => rankGo(e.target.closest('.rank-item')));
+    document.getElementById('rankList').addEventListener('keydown', e => { if (e.key === 'Enter') rankGo(e.target.closest('.rank-item')); });
+
+    /* ---------- Gráficos ---------- */
+    function renderCharts() {
+      AT.chart.stackedMonthly('chMensal', sel, ST.from, ST.to, ST.groups);
+      AT.chart.donut('chModalidade', 'lgModalidade', AT.countBy(sel, 'modalidade'));
+      AT.chart.donut('chTipo', 'lgTipo', AT.countBy(sel, 'tipo'));
+      AT.chart.bars('chGerencia', AT.countBy(sel, 'gerencia'), { color: '#8b5cf6' });
+      const porte = PORTES.map(p => [p, sel.filter(r => r.porte === p).length]);
+      AT.chart.bars('chPorte', porte, { color: '#2dd4bf', horizontal: true });
+      const rd = RD_LIST.map(r => [shortRD(r), (aggS.rd[r] || {}).total || 0]);
+      AT.chart.bars('chRD', rd, { horizontal: true, colors: RD_LIST.map(r => RD_COLORS[r]) });
+      AT.chart.donut('chDevolutiva', 'lgDevolutiva', AT.countBy(sel, 'devolutiva'));
+      if (meta.hasSituacao) {
+        document.getElementById('panelSituacao').classList.remove('hidden');
+        AT.chart.donut('chSituacao', 'lgSituacao', AT.countBy(sel, 'situacao'));
+      }
+    }
+
+    /* ---------- Tabela ---------- */
+    function tableRows() {
+      const q = norm(document.getElementById('tblSearch').value), onlyZero = document.getElementById('tblZero').checked;
+      let rows = MUN_LIST.map(m => {
+        const b = aggB.mun[m.key] || { g: {}, last: 0 }, s = aggS.mun[m.key] || { total: 0, last: 0 };
+        return { key: m.key, nome: m.nome, rd: m.rd, porte: m.porte, g: b.g, total: s.total, last: s.last || 0 };
+      });
+      if (q) rows = rows.filter(r => norm(r.nome).includes(q) || norm(r.rd).includes(q));
+      if (onlyZero) rows = rows.filter(r => r.total === 0);
+      const { col, dir } = tblSort;
+      const val = r => col === 'nome' || col === 'rd' || col === 'porte' ? r[col] : (col === 'total' || col === 'last') ? r[col] : (r.g[col] || 0);
+      rows.sort((a, b) => { const x = val(a), y = val(b); return (typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : x - y) * dir || a.nome.localeCompare(b.nome, 'pt-BR'); });
+      return rows;
+    }
+    function renderTable() {
+      const rows = tableRows();
+      const heads = [['nome', 'Município', ''], ['rd', 'Região', ''], ['porte', 'Porte', '']].concat(GR.map(g => [g.id, g.curto, 'num'])).concat([['total', 'Total', 'num'], ['last', 'Última atividade', 'num']]);
+      const t = document.getElementById('tbl');
+      t.innerHTML = '<thead><tr>' + heads.map(([c, l, k]) => `<th data-c="${c}" class="${k}" ${tblSort.col === c ? `aria-sort="${tblSort.dir > 0 ? 'ascending' : 'descending'}"` : ''}>${esc(l)}</th>`).join('') + '</tr></thead><tbody>' +
+        rows.map(r => `<tr><td><a href="${munLink(r.key)}">${esc(r.nome)}</a></td><td>${esc(shortRD(r.rd))}</td><td>${esc(r.porte)}</td>` +
+          GR.map(g => { const v = r.g[g.id] || 0; return `<td class="num ${v ? '' : 'zero'}">${fmt(v)}</td>`; }).join('') +
+          `<td class="num ${r.total ? '' : 'zero'}"><b>${fmt(r.total)}</b></td><td class="num ${r.last ? '' : 'zero'}">${r.last ? AT.fmtDate(r.last) : '—'}</td></tr>`).join('') + '</tbody>';
+      document.getElementById('tblHint').textContent = `${rows.length} de ${TOTAL_MUN} municípios`;
+    }
+    document.getElementById('tbl').addEventListener('click', e => {
+      const th = e.target.closest('th'); if (!th) return;
+      const c = th.dataset.c; tblSort = { col: c, dir: tblSort.col === c ? -tblSort.dir : (c === 'nome' || c === 'rd' || c === 'porte' ? 1 : -1) }; renderTable();
+    });
+    document.getElementById('tblSearch').addEventListener('input', renderTable);
+    document.getElementById('tblZero').addEventListener('change', renderTable);
+    document.getElementById('btnCsv').addEventListener('click', () => {
+      const rows = tableRows();
+      AT.csvDownload(`apoio-tecnico_${AT.ymdToIso(ST.from)}_${AT.ymdToIso(ST.to)}.csv`,
+        [['Município', 'Região de desenvolvimento', 'Porte'].concat(GR.map(g => g.nome)).concat(['Total', 'Última atividade'])]
+          .concat(rows.map(r => [r.nome, r.rd, r.porte].concat(GR.map(g => r.g[g.id] || 0)).concat([r.total, r.last ? AT.fmtDate(r.last) : '']))));
+    });
+
+    /* ---------- Diagnóstico ---------- */
+    function renderDiag() {
+      const d = meta.diag;
+      const cats = Object.entries(d.categorias).map(([k, n]) => { const [c, g] = k.split('||'); return [c, g, n]; }).sort((a, b) => b[2] - a[2]);
+      const nao = Object.entries(d.munNaoReconhecidos).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      document.getElementById('diagBody').innerHTML = `
+        <div><h4>Valores de “categoria” e grupo atribuído</h4>
+          <table><tr><th>Categoria na base</th><th>Grupo</th><th class="num">Registros</th></tr>${cats.map(([c, g, n]) => `<tr><td>${esc(c)}</td><td>${esc(GRUPO_BY_ID[g].nome)}</td><td class="num">${fmt(n)}</td></tr>`).join('')}</table>
+          <p style="margin-top:.5rem">Se algum valor estiver no grupo errado, ajuste as regras em <code>GRUPOS</code> no arquivo <code>core.js</code>.</p></div>
+        <div><h4>Qualidade dos dados (toda a base)</h4>
+          <table><tr><td>Registros lidos</td><td class="num">${fmt(d.total)}</td></tr>
+          <tr><td>Sem data válida (fora de qualquer período)</td><td class="num">${fmt(d.semData)}</td></tr>
+          <tr><td>Sem município reconhecido</td><td class="num">${fmt(d.semMunicipio)}</td></tr></table>
+          ${nao.length ? `<h4 style="margin-top:.8rem">Nomes de município não reconhecidos</h4><table>${nao.map(([n, c]) => `<tr><td>${esc(n)}</td><td class="num">${fmt(c)}</td></tr>`).join('')}</table>` : ''}
+          <p style="margin-top:.5rem">Colunas encontradas: ${esc(d.colunas.join(', '))}</p></div>`;
+    }
+
+    /* ---------- Atualização geral ---------- */
+    function update() {
+      ST.modalidade = ''; // o filtro de modalidade é aplicado manualmente abaixo
+      base = AT.filterBase(recs, ST);
+      // Aplica o filtro multi-select de modalidade sobre a base
+      base = base.filter(r => ST.modalidades[r.modalidade] === true);
+      sel = AT.filterGroups(base, ST);
+      aggB = AT.aggregate(base); aggS = AT.aggregate(sel);
+      document.getElementById('rankHint').textContent = `${AT.fmtDate(ST.from)} a ${AT.fmtDate(ST.to)}`;
+      document.getElementById('navMun').href = `municipio.html?${qs()}`;
+      renderKpis(); renderCharts(); renderRank(); renderTable();
+      if (map) paintMap();
+    }
+
+    mountFilters();
+    renderDiag();
+    update();
+
+    try {
+      const geo = await loadGeo();
+      initMap(geo);
+      paintMap();
+    } catch (e) {
+      document.getElementById('map').innerHTML = '<div class="empty-state"><h2>Não foi possível carregar o mapa</h2>As fronteiras dos municípios não foram baixadas. Verifique a conexão e recarregue a página. Os demais indicadores continuam disponíveis.</div>';
+    }
+    window.addEventListener('resize', () => { if (map) map.invalidateSize({ animate: false }); });
+  })();
+  </script>
+</body>
+</html>
