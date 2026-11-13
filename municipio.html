@@ -84,6 +84,7 @@
             <div class="tags" id="dTags"></div>
           </div>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn primary" type="button" id="btnPdf">Gerar Relatório PDF</button>
             <button class="btn" type="button" id="btnCsv">Baixar registros (CSV)</button>
             <a class="btn" id="btnMapa" href="index.html">Ver no painel geral</a>
           </div>
@@ -144,9 +145,27 @@
 
   <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
 
+  <!-- Modal de confirmação do relatório PDF -->
+  <div class="modal-overlay" id="pdfOverlay" role="dialog" aria-modal="true" aria-labelledby="pdfTitulo">
+    <div class="modal-card">
+      <button class="modal-close" type="button" id="pdfClose" aria-label="Fechar">&times;</button>
+      <h2 id="pdfTitulo">Gerar Relatório PDF</h2>
+      <div class="sub" id="pdfSub">Confira os filtros que serão aplicados no relatório.</div>
+      <div id="pdfMini"></div>
+      <div class="modal-actions" id="pdfActions">
+        <button class="btn" type="button" id="pdfCancel">Cancelar</button>
+        <button class="btn primary" type="button" id="pdfConfirm">Confirmar e gerar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="config.js"></script>
   <script src="core.js"></script>
+  <script src="relatorio-config.js"></script>
+  <script src="relatorio.js"></script>
   <script>
   (async function () {
     const { esc, fmt, fmt1, pct, norm, MUN, MUN_LIST, RD_COLORS, GRUPOS, OUTROS, GRUPO_BY_ID } = AT;
@@ -406,8 +425,94 @@
     update();
     if (!current) input.focus();
 
+    /* ---------- Relatório PDF ---------- */
+    const pdfOverlay = document.getElementById('pdfOverlay');
+
+    function descreveFiltros() {
+      const cats = [];
+      if (ST.groups.individual) cats.push('ATMs Individuais');
+      if (ST.groups.roda) cats.push('Rodas de Diálogo');
+      if (ST.groups.evento) cats.push('MUPS, Oficinas, SICON e Encontros');
+      if (ST.groups.outros) cats.push('Outras categorias');
+      const totalCats = GRUPOS.length + (meta.hasOutros ? 1 : 0);
+      const catsTxt = cats.length === totalCats ? 'Todas' : (cats.length === 0 ? '— (nenhuma selecionada)' : cats.join(', '));
+
+      const mods = MODALIDADES.filter(m => ST.modalidades[m]);
+      const modsTxt = mods.length === MODALIDADES.length ? 'Todas' : (mods.length === 0 ? '— (nenhuma selecionada)' : mods.join(', '));
+
+      const periodo = `${AT.fmtDate(ST.from)} a ${AT.fmtDate(ST.to)}`;
+      const ger = ST.gerencia || 'Todas';
+      const total = sel.filter(r => r.mun === current).length;
+      return { periodo, catsTxt, modsTxt, ger, total };
+    }
+
+    function abrirPdfModal() {
+      if (!current || !MUN[current]) return;
+      const f = descreveFiltros();
+      document.getElementById('pdfMini').innerHTML = `
+        <div class="pdf-filtros">
+          <div><span>Município</span><b>${esc(MUN[current].nome)}</b></div>
+          <div><span>Período</span><b>${f.periodo}</b></div>
+          <div><span>Categorias</span><b>${esc(f.catsTxt)}</b></div>
+          <div><span>Modalidades</span><b>${esc(f.modsTxt)}</b></div>
+          <div><span>Gerência</span><b>${esc(f.ger)}</b></div>
+          <div><span>Total de registros</span><b class="total">${fmt(f.total)}</b></div>
+        </div>
+        <p style="color:var(--muted);font-size:.82rem;margin-top:.4rem;text-align:center">
+          ${f.total === 0
+            ? 'Nenhum registro corresponde aos filtros atuais. Ajuste os filtros para gerar o relatório.'
+            : 'Confirma a geração do relatório em PDF com os dados acima?'}
+        </p>
+        <div id="pdfErr" style="display:none;color:var(--danger);font-size:.82rem;text-align:center;margin-top:.6rem"></div>
+      `;
+      const err = document.getElementById('pdfErr');
+      if (err) err.style.display = 'none';
+      const conf = document.getElementById('pdfConfirm');
+      conf.disabled = f.total === 0;
+      conf.textContent = 'Confirmar e gerar';
+      pdfOverlay.classList.add('open');
+      document.getElementById('pdfClose').focus();
+    }
+
+    document.getElementById('btnPdf').addEventListener('click', abrirPdfModal);
+    document.getElementById('pdfClose').addEventListener('click', () => pdfOverlay.classList.remove('open'));
+    document.getElementById('pdfCancel').addEventListener('click', () => pdfOverlay.classList.remove('open'));
+    pdfOverlay.addEventListener('click', e => { if (e.target === pdfOverlay) pdfOverlay.classList.remove('open'); });
+
+    document.getElementById('pdfConfirm').addEventListener('click', async () => {
+      const btn = document.getElementById('pdfConfirm');
+      const err = document.getElementById('pdfErr');
+      err.style.display = 'none';
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = 'Gerando…';
+
+      try {
+        const registrosMun = sel.filter(r => r.mun === current);
+        await window.RP.gerarPDF({
+          municipio: MUN[current],
+          registros: registrosMun,
+          from: ST.from,
+          to: ST.to,
+          filtros: { grupos: ST.groups, modalidades: ST.modalidades, gerencia: ST.gerencia },
+          hasOutros: meta.hasOutros
+        });
+        setTimeout(() => pdfOverlay.classList.remove('open'), 300);
+      } catch (e) {
+        console.error(e);
+        err.textContent = 'Erro ao gerar o PDF: ' + (e.message || e);
+        err.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    });
+
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && sidebarEl.classList.contains('open')) closeSidebar();
+      if (e.key === 'Escape') {
+        if (pdfOverlay.classList.contains('open')) pdfOverlay.classList.remove('open');
+        else if (sidebarEl.classList.contains('open')) closeSidebar();
+      }
     });
   })();
   </script>

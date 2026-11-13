@@ -757,3 +757,28 @@ details.diag td.num { text-align: right; color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- Relatório PDF (modal de confirmação) ---------- */
+.pdf-filtros {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: .8rem 0 1rem;
+}
+.pdf-filtros > div {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: .6rem;
+  padding: .5rem 0;
+  border-bottom: 1px solid var(--line-soft);
+  align-items: baseline;
+}
+.pdf-filtros > div:last-child { border-bottom: 0; }
+.pdf-filtros > div > span { color: var(--muted); font-size: .8rem; }
+.pdf-filtros > div > b { color: var(--text); font-size: .85rem; font-weight: 600; word-break: break-word; }
+.pdf-filtros .total { color: var(--accent); font-size: 1.15rem; }
+
+@media (max-width: 720px) {
+  .pdf-filtros > div { grid-template-columns: 1fr; gap: .15rem; }
+  .pdf-filtros > div > span { font-size: .72rem; }
+}
