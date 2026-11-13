@@ -1,6 +1,6 @@
 # Contexto do projeto — Apoio Técnico (Pernambuco)
 
-> **Para quem for usar este arquivo (pessoa ou assistente de IA):** ele reúne tudo o que se sabe sobre o projeto até 22/10/2026: a base de dados, o que já foi construído (painel de visualização) e o ponto de partida para o próximo sistema (marcação de atividades e monitoramento de pendências). Cada afirmação está marcada como **[Fato]** (veio de documento/arquivo/teste), **[Inferência]** (deduzido, precisa confirmação) ou **[Proposta]** (sugestão de desenho, ainda não decidida). Leia a seção 11 (perguntas em aberto) antes de implementar qualquer coisa.
+> **Para quem for usar este arquivo (pessoa ou assistente de IA):** ele reúne tudo o que se sabe sobre o projeto até 13/11/2026: a base de dados, o que já foi construído (painel de visualização e relatório em PDF) e o ponto de partida para o próximo sistema (marcação de atividades e monitoramento de pendências). Cada afirmação está marcada como **[Fato]** (veio de documento/arquivo/teste), **[Inferência]** (deduzido, precisa confirmação) ou **[Proposta]** (sugestão de desenho, ainda não decidida). Leia a seção 11 (perguntas em aberto) antes de implementar qualquer coisa.
 
 ---
 
@@ -9,7 +9,7 @@
 1. O projeto **Apoio Técnico** acompanha atividades de apoio técnico prestadas a **185 municípios de Pernambuco**, agrupados em **12 Regiões de Desenvolvimento (RDs)**.
 2. Os dados ficam em um banco **PostgreSQL no Supabase** (tabela `public.apoio_tecnico`), com **11 campos de negócio**. A base cobre **2023 a 2026**.
 3. Existia um mapa em HTML (Leaflet) com números **fixos no código**. Ele serviu de inspiração visual.
-4. Já foi entregue um **sistema de visualização** em 2 páginas (painel geral com mapa + página de pesquisa por município), que lê o Supabase pela API REST, só leitura.
+4. Já foi entregue um **sistema de visualização** em 2 páginas (painel geral com mapa + página de pesquisa por município), que lê o Supabase pela API REST, só leitura. Também existe um **gerador de relatório em PDF** por município (A4 paisagem, mesmo layout de um modelo em Word aprovado), descrito na seção 5.6.
 5. O período padrão do painel é o **ano atual**, e o usuário pode trocar para outro ano, "Todo o período" ou um intervalo livre.
 6. O próximo passo desejado é um **sistema separado** para **marcar atividades** e **monitorar pendências**, com uma base de **apoios solicitados e ainda não concluídos**.
 7. **[Inferência]** A tabela atual provavelmente contém **somente atendimentos concluídos** (o mapa antigo filtrava `Status = "Concluído"`, e a tabela não tem coluna de status).
@@ -30,6 +30,7 @@
 | **Modalidade** | Presencial no Município, Presencial na SEASS, Remoto (valores do dashboard de exemplo). |
 | **Tipo** | Particularizado, Integrado, Semi-Integrado (valores do dashboard de exemplo). |
 | **Gerência** | Área responsável. Siglas vistas no dashboard de exemplo: GESTÃO, GEBEN, GEPSB, GEPMC, GEPAC, GETEP, GEFEAS, VSA, CAS (leitura de imagem; **confirmar grafia**). |
+| **Relatório PDF** | Documento por município com os apoios técnicos de um período, gerado no navegador (seção 5.6). Reproduz o modelo `Barreiros_Apoios_Tecnicos_2026.docx`. |
 | **Situação** | Estado do atendimento. Dashboard de exemplo: Suspenso, Em análise, Agendado, Concluído. **Não existe na tabela atual.** |
 | **Devolutiva** | Registro de retorno/encaminhamento ao município após o apoio. |
 | **Avaliação** | Avaliação da atividade (formato dos valores desconhecido: número ou texto). |
@@ -130,9 +131,11 @@ Pasta entregue: `sistema-apoio-tecnico/` — site estático, sem back-end, sem b
 | `core.js` | Núcleo compartilhado (~46 KB, com os 185 municípios embutidos) |
 | `apoio.css` | Estilos (tema azul-marinho, fonte IBM Plex Sans) |
 | `config.js` | URL, chave pública (opcional), tabela, nomes de colunas, minutos de cache |
+| `relatorio.js` | **Gerador do relatório PDF** (`window.RP.gerarPDF`), seção 5.6 |
+| `relatorio-config.js` | Cores, fontes, textos e medidas do relatório PDF (`window.RELATORIO_CONFIG`) |
 | `LEIA-ME.txt` | Instalação e ajustes |
 
-Dependências por CDN: Leaflet 1.9.4 (unpkg), Chart.js 4.4.1 (jsDelivr), Google Fonts. Mapa base CARTO dark.
+Dependências por CDN: Leaflet 1.9.4 (unpkg), Chart.js 4.4.1 (jsDelivr), Google Fonts. Mapa base CARTO dark. Para o relatório PDF: **jsPDF** e **jspdf-autotable** (carregados antes de `relatorio-config.js` e `relatorio.js`) e a fonte **Carlito**, baixada em tempo de execução (seção 5.6).
 
 ### 5.1 Painel geral (`index.html`)
 - **Filtros** (barra superior): período (chips por ano + "Todo o período" + datas livres), categorias (3 + "Outras" se existirem), gerência, modalidade, porte, "Limpar filtros".
@@ -166,7 +169,7 @@ Dependências por CDN: Leaflet 1.9.4 (unpkg), Chart.js 4.4.1 (jsDelivr), Google 
 10. **Agregação é feita no navegador** (a base inteira é baixada). Hoje é viável (milhares de linhas); com crescimento, migrar para views/RPC no PostgreSQL.
 
 ### 5.4 Como foi testado
-Chromium (Playwright) com Leaflet/Chart.js locais e a malha real de PE (185 polígonos), em modo demo e com um **Supabase simulado** (sem coluna `id`, datas `dd/mm/aaaa`, municípios em maiúsculas sem acento, município inexistente, linha sem data, categoria desconhecida). Verificados: pedido de chave, fallback de ordenação, paginação, troca de período e intervalo manual, validação de datas invertidas, diagnóstico, modal, busca, páginas do município, layout 1440 px e 390 px. **Nunca foi testado contra o Supabase real** (o ambiente de desenvolvimento não alcança o domínio).
+Chromium (Playwright) com Leaflet/Chart.js locais e a malha real de PE (185 polígonos), em modo demo e com um **Supabase simulado** (sem coluna `id`, datas `dd/mm/aaaa`, municípios em maiúsculas sem acento, município inexistente, linha sem data, categoria desconhecida). Verificados: pedido de chave, fallback de ordenação, paginação, troca de período e intervalo manual, validação de datas invertidas, diagnóstico, modal, busca, páginas do município, layout 1440 px e 390 px. **Nunca foi testado contra o Supabase real** (o ambiente de desenvolvimento não alcança o domínio). O relatório PDF teve teste próprio (seção 5.6.6).
 
 ### 5.5 Limitações conhecidas da v1
 - Valores reais de `categoria`, `avaliacao`, `data` (tipo) não foram vistos.
@@ -175,6 +178,80 @@ Chromium (Playwright) com Leaflet/Chart.js locais e a malha real de PE (185 pol�
 - Dependência de CDNs externos (Leaflet, Chart.js, malha geográfica); em rede restrita, vale hospedar localmente.
 - Cadastro de municípios duplicado dentro de `core.js` (não vem do banco).
 - Painel não distingue apoios concluídos de pendentes (por falta de dado).
+- Relatório PDF: nunca foi executado no navegador com o painel real nem com dados reais do Supabase; depende de CDN para baixar a fonte (seção 5.6.7).
+
+### 5.6 Relatório em PDF por município (`relatorio.js` + `relatorio-config.js`)
+
+#### 5.6.1 Origem e objetivo **[Fato]**
+- Um documento Word (`Barreiros_Apoios_Tecnicos_2026.docx`), produzido por outra ferramenta de IA, foi adotado como **modelo visual**. O objetivo é que o PDF gerado pelo sistema fique **idêntico** a esse modelo.
+- Uma primeira versão do gerador (retrato, fonte IBM Plex, tons de vermelho/rosa, cards de período e total na capa) foi **substituída**: não correspondia ao modelo. A versão atual foi reescrita a partir das medidas e cores extraídas do XML do `.docx`.
+
+#### 5.6.2 Como funciona **[Fato]**
+- Roda **inteiramente no navegador**; nenhum dado sai do computador do usuário e não há chamada extra ao Supabase. Recebe os registros que o painel já tem em memória e baixa o arquivo com `pdf.save()`.
+- Carregamento: `jsPDF` e `jspdf-autotable` (globais `window.jspdf.jsPDF` e `pdf.autoTable`) → `relatorio-config.js` → `relatorio.js`.
+- Chamada:
+  ```js
+  const nomeArquivo = await RP.gerarPDF({
+    municipio: { nome: 'Barreiros', rd: 'RD 10 - Mata Sul', porte: 'Pequeno Porte II' },
+    registros,              // registros normalizados do core.js (já filtrados pelo período/filtros)
+    from: 20260101,         // AAAAMMDD
+    to:   20261231,         // AAAAMMDD
+    filtros: {
+      grupos: { individual: true, roda: true, evento: true, outros: true },
+      modalidades: { 'Presencial Município': true, 'Presencial SEASS': true, 'Remoto': true },
+      gerencia: ''          // vazio = "Todas"
+    },
+    meta: {},
+    hasOutros: false        // true só se existirem registros fora das 3 categorias
+  });
+  ```
+- Campos usados de cada registro: `ymd`, `grupo` (`individual` | `roda` | `evento` | `outros`), `sub` (`'Encontros estaduais'` separa Encontros de Oficinas/MUPS/SICON), `evento`, `modalidade`, `tipo`, `gerencia`, `i` (desempate na ordenação). Ordenação: data crescente.
+- Nome do arquivo: `<Municipio>_Apoios_Tecnicos_<ano>.pdf` (ex.: `Barreiros_Apoios_Tecnicos_2026.pdf`).
+- **[Inferência]** O ponto exato do painel que chama `RP.gerarPDF` (botão na página do município, por exemplo) não foi revisado nesta etapa; confirmar o que o botão passa em `filtros` e `meta`.
+
+#### 5.6.3 Layout (réplica do modelo Word) **[Fato]**
+- **Papel**: A4 **paisagem** (297 × 210 mm), margens de 17,64 mm.
+- **Fonte**: **Carlito** (equivalente livre da Calibri, mesmas métricas), nos pesos normal, negrito e itálico. Tamanhos: título 28 pt, subtítulo 15 pt, blocos 16 pt, faixa de seção 16 pt, subtítulo/descrição/totais 11 pt, tabelas 10 pt, rodapé 9 pt.
+- **Página 1 (capa)**: título do município em maiúsculas, "Registros de Apoio Técnico", linha verde-água; cards **Região de Desenvolvimento** e **Porte**; bloco **"Filtros Aplicados:"** com **Período Selecionado** (início, "a", fim), **Modalidades Selecionadas** (uma por linha, terminando em ";" e "." no final) e **Gerências** ("Todas" se vazio); **Resumo por categoria** (tabela centralizada com as 3 categorias e **Total geral**; a linha "Outras categorias" só aparece se houver registros).
+- **Páginas seguintes (uma seção por página)**: faixa de título colorida (`  1.  ATMS INDIVIDUAIS`), faixa de subtítulo em itálico em tom claro, descrição, linha `Total: N  |  Modalidade: N` e tabela.
+  1. **ATMs Individuais** (verde): Data, Evento, Modalidade, Tipo, Gerência.
+  2. **Rodas de Diálogo** (rosa): mesmas colunas.
+  3. **MUPS, Oficinas, SICON e Encontros** (roxo): subseções **Oficinas (n)** e **Encontros (n)**, com Data, Evento, Gerência.
+  4. **Outras categorias** (cinza): só se existirem registros.
+- **Tabelas**: cabeçalho na cor da seção, texto branco em negrito; data em negrito; linhas pares (2ª, 4ª…) no tom claro da seção; borda `#d0d5dd`. A tabela de cada seção repete o cabeçalho se passar de uma página.
+- **Rodapé** (todas as páginas, à direita): `Barreiros · Apoios Técnicos 2026  |  Página N` (sem "de N", como no modelo).
+
+#### 5.6.4 Paleta do relatório (tema claro, diferente do painel escuro) **[Fato]**
+| Uso | Cor |
+|---|---|
+| Título, valores dos cards, cabeçalho do resumo | `#1b2a4a` |
+| Linha sob o título e barras dos cards | `#2bb3a3` |
+| Fundo dos cards e linha "Total geral" | `#f1f4f9` |
+| ATMs individuais / tom claro | `#1f9d6b` / `#e6f5ee` |
+| Rodas de Diálogo / tom claro | `#d6336c` / `#fce8ef` |
+| MUPS, Oficinas, SICON e Encontros / tom claro | `#6f42c1` / `#eee8fa` |
+| Outras categorias / tom claro | `#64748b` / `#f1f4f9` |
+| Descrição / texto secundário / rodapé | `#333b4a` / `#5b6577` / `#7a8396` |
+
+Atenção: as cores das categorias no relatório (verde `#1f9d6b`, rosa `#d6336c`, roxo `#6f42c1`) **não são** as do painel (`#3fae6a`, `#d4678c`, `#9b7bf2`); são as do modelo Word. Se for desejável unificar, decidir qual conjunto vale para os dois.
+
+#### 5.6.5 Onde ajustar **[Fato]**
+- **`relatorio-config.js`**: cores (`cores`), tamanhos (`fontes`), URLs da fonte (`fontesArquivo`), textos fixos e descrições das seções (`textos`), margens e larguras das colunas em mm (`layout`). Também reserva `imagens.brasao` e `imagens.logoDireita` (hoje `null`; o modelo não tem logos).
+- **`relatorio.js`**: estrutura das páginas, métricas de linha (corpo × 1,22) e regras (ordenação, divisão Oficinas/Encontros, rodapé).
+- Cache da fonte: `localStorage.relatorio_fonts_carlito_v1`.
+
+#### 5.6.6 Como foi testado **[Fato]**
+- Em Node.js com jsPDF 4.2.1 e jspdf-autotable 5.0.9, usando a Carlito instalada no sistema e **15 registros sintéticos** que reproduzem os de Barreiros em 2026 (1 individual, 8 rodas, 6 eventos).
+- O PDF foi convertido em imagem e comparado com o `.docx` renderizado: as bordas das linhas das tabelas ficaram a **no máximo 1 pixel** de diferença a 80 dpi nas 4 páginas, com o mesmo número de páginas e mesma ordem de conteúdo.
+- **Não testado**: navegador real (Chrome/Edge/Firefox), versões de jsPDF/autotable carregadas por CDN no painel, muitos registros (paginação de tabelas longas em produção), nomes de município muito longos, dados reais do Supabase.
+
+#### 5.6.7 Limitações e cuidados **[Fato / Inferência]**
+- **Fonte por CDN [Fato]**: se `cdn.jsdelivr.net` e `raw.githubusercontent.com` estiverem bloqueados, o código cai para **Helvetica sem acentos**, e o visual deixa de ser idêntico ao modelo. Em rede restrita, hospedar `Carlito-Regular/Bold/Italic.ttf` junto do sistema e apontar `fontesArquivo` para eles.
+- **Dados de filtros [Inferência]**: o texto "Todas" para gerência e o texto de modalidades vêm de `filtros`; se o painel passar valores diferentes dos esperados (ex.: modalidades como lista em vez de objeto), o relatório mostrará "Nenhuma".
+- O relatório é **por município**; não há versão por RD ou do estado.
+- A divisão entre **Oficinas** e **Encontros** depende do campo `sub` produzido por `core.js` (regra `/encontro/`, seção 5.3, item 4); um erro de classificação lá aparece no PDF.
+- Os textos dos eventos vêm dos dados: diferenças de grafia entre fontes (ex.: "Reordenado" × "Reordenamento do PI SUAS") não são corrigidas pelo gerador.
+
 
 ---
 
@@ -187,6 +264,7 @@ Chromium (Playwright) com Leaflet/Chart.js locais e a malha real de PE (185 pol�
 - Tipografia: IBM Plex Sans, números tabulares. Textos em português do Brasil, datas `dd/mm/aaaa`, milhares com ponto.
 - Layout: faixa de indicadores com divisórias (não cartões soltos), painéis de borda fina, sem sombras; responsivo (1100 px e 720 px).
 - Acessibilidade: foco visível, `aria-pressed` nos chips, rótulos em campos, `prefers-reduced-motion`.
+- **Relatório PDF**: segue outra identidade (tema claro, A4 paisagem, fonte Carlito, cores por categoria do modelo Word); ver seção 5.6.4.
 
 ---
 
@@ -200,6 +278,7 @@ Chromium (Playwright) com Leaflet/Chart.js locais e a malha real de PE (185 pol�
   alter table public.apoio_tecnico enable row level security;
   create policy "leitura publica" on public.apoio_tecnico for select to anon using (true);
   ```
+- O relatório PDF é gerado no navegador a partir dos dados já carregados; não adiciona chaves nem chamadas à API. O arquivo baixado contém dados de atividades (sem dados pessoais de solicitantes, até onde se sabe).
 - Backup antes de qualquer importação de CSV; cuidado com sobrescrever edições feitas direto no banco.
 - Controle de versão no GitHub (o documento da base recomenda), com credenciais fora do repositório.
 
@@ -370,6 +449,7 @@ Pontos de desenho:
 11. O novo sistema deve rodar **no mesmo projeto Supabase** ou isolado?
 12. Quais as definições oficiais de **MUPS, SICON, SEASS** e a lista correta de **gerências**?
 13. Há exigência de **auditoria/LGPD** (dados pessoais de solicitantes)?
+14. Sobre o **relatório PDF**: o modelo Word (Barreiros 2026) é o layout oficial para todos os municípios? Precisa de **brasão/logo** e assinatura? Vai existir versão por **RD** ou do **estado**? As cores do relatório (seção 5.6.4) devem valer também no painel?
 
 ---
 
@@ -387,6 +467,7 @@ Pontos de desenho:
    select min(data), max(data), count(*) from public.apoio_tecnico;
    ```
 4. Responder a seção 11 e fechar o ciclo de vida (8.2) e os papéis.
+   - **Relatório PDF**: gerar um PDF no navegador com dados reais (um município pequeno e um grande, com tabela longa), conferir as 4 páginas contra o modelo Word e a fonte (acentos corretos, sem cair em Helvetica).
 5. Criar `municipio` e as tabelas da seção 9.2 em um ambiente de teste (projeto Supabase de desenvolvimento, de preferência).
 6. Começar pela Fase 1, reaproveitando `core.js`/`apoio.css` e a identidade visual da seção 6.
 
@@ -400,5 +481,6 @@ Objeto global `window.AT` com:
 - **Componentes de UI**: `mountPeriod()`, `mountGroupChips()`, `mountSelect()`.
 - **Gráficos** (`AT.chart`): `donut()`, `bars()` (vertical/horizontal), `stackedMonthly()`.
 - **Registro normalizado** (`recs[i]`): `{ i, mun, munRaw, nome, rd, porte, ymd, y, ym, grupo, sub, categoria, evento, modalidade, tipo, gerencia, devolutiva, avaliacao, situacao }`, onde `ymd` é inteiro `AAAAMMDD` e `mun` é a chave normalizada do município.
+- **Relatório PDF** (arquivos separados): `window.RP.gerarPDF(opts)` em `relatorio.js` e `window.RELATORIO_CONFIG` em `relatorio-config.js` (seção 5.6). Usa os campos `ymd`, `grupo`, `sub`, `evento`, `modalidade`, `tipo`, `gerencia`, `i` do registro normalizado.
 - **Configuração** em `window.APOIO_CONFIG` (`SUPABASE_URL`, `SUPABASE_KEY`, `TABELA`, `COLUNAS`, `CACHE_MINUTOS`).
-- Chaves de armazenamento: `localStorage.apoio_supabase_key`, `sessionStorage.apoio_cache_v1`, `sessionStorage.apoio_demo`.
+- Chaves de armazenamento: `localStorage.apoio_supabase_key`, `sessionStorage.apoio_cache_v1`, `sessionStorage.apoio_demo`, `localStorage.relatorio_fonts_carlito_v1` (cache da fonte do relatório).
